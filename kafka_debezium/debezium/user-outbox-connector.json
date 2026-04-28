@@ -1,0 +1,30 @@
+{
+  "name": "user-outbox-connector-v2",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+    "database.hostname": "mariadb",
+    "database.port": "3306",
+    "database.user": "app",
+    "database.password": "app1234",
+    "database.server.id": "184055",
+    "topic.prefix": "appdb",
+    "database.include.list": "app",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:9092",
+    "schema.history.internal.kafka.topic": "schema-changes.appdb.v2",
+    "table.include.list": "app.outbox_event",
+    "tombstones.on.delete": "false",
+    "include.schema.changes": "false",
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.outbox.route.by.field": "aggregate_type",
+    "transforms.outbox.route.topic.replacement": "outbox.event.${routedByValue}",
+    "transforms.outbox.table.field.event.id": "event_id",
+    "transforms.outbox.table.field.event.key": "aggregate_id",
+    "transforms.outbox.table.field.event.payload": "payload",
+    "transforms.outbox.table.fields.additional.placement": "event_type:header:eventType,status:header:status",
+    "transforms.outbox.table.expand.json.payload": "true",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
+  }
+}
