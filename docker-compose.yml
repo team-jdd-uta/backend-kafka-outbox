@@ -47,6 +47,8 @@ services:
       - "--server-id=2"
       - "--log-bin=mysql-bin"
       - "--binlog-format=ROW"
+    volumes:
+      - ./init-user.sql:/docker-entrypoint-initdb.d/init-user.sql:ro
 
   debezium-connect:
     image: debezium/connect:2.6
