@@ -1,111 +1,122 @@
-kafka-outbox 루트에서 인프라를 올립니다.
-docker compose up -d
+# backend-kafka-outbox
 
-source DB용 Debezium connector를 등록합니다.
-curl -X POST http://localhost:8083/connectors -H "Content-Type: application/json" -d @debezium/user-outbox-connector.json
+CDC outbox 패턴을 검증하기 위한 Kafka, Debezium, MariaDB, Conduktor 예제 레포입니다. 현재 Kubernetes 배포에서 직접 사용하는 주요 산출물은 Debezium Kafka Connect 커스텀 이미지 빌드 컨텍스트인 `kafka-connect/Dockerfile`입니다.
 
-loginservice를 실행합니다.
-이 서비스가 회원가입 요청을 받아 source DB에 users와 outbox_event를 씁니다.
+이 레포의 `user-service`와 `notification-service`는 outbox 패턴 참고 구현입니다. 실제 서비스 배포 경로에서는 `backend-login-service`가 source DB/outbox를 쓰고, `backend-user-service`가 Kafka 이벤트를 소비해 `customer` 테이블에 projection합니다.
 
-회원가입 요청을 보냅니다.
-POST http://localhost:8081/register
-body: {"username":"alice","password":"password"}
+## 역할
 
-전파 결과를 확인합니다.
-3308의 outbox_event가 늘고, 3307의 customer에 새 row가 들어오면 정상입니다.
+- 로컬 Docker Compose로 Kafka, MariaDB, Debezium, Conduktor를 실험합니다.
+- Debezium Outbox EventRouter 설정 예제를 제공합니다.
+- Kubernetes/Harbor 배포용 Kafka Connect 이미지를 빌드합니다.
+- outbox 패턴 참고 구현(`user-service`, `notification-service`, `shared-events`)을 보관합니다.
 
+## 실제 MSA 배포에서의 위치
 
-
-# Kafka Outbox CDC
-
-A minimal Spring Boot + Kafka + Debezium structure for user signup event propagation with the outbox pattern.
-
-## Flow
-
-1. `user-service` creates a user and an outbox row in the same database transaction.
-2. Debezium watches the outbox table, applies the outbox SMT, and publishes domain events to Kafka.
-3. `notification-service` consumes the Kafka event and handles downstream propagation.
-
-## Important detail
-
-Debezium should not read the `users` table directly for this flow. The `users` table stores business state, and the `outbox_event` table stores the message to be published. The connector reads only the outbox table and routes the payload into Kafka as a domain event.
-
-For local development, Kafka is exposed on `localhost:29092`.
-
-This project uses KRaft mode, so ZooKeeper is not required.
-
-## Modules
-
-- `shared-events`: shared event contract
-- `user-service`: signup API + outbox writer
-- `notification-service`: Kafka consumer for downstream propagation
-
-## Key idea
-
-The application never publishes directly to Kafka inside the signup transaction. It only writes business data and an outbox record. CDC handles delivery from the database to Kafka.
-
-## Next steps
-
-- Create the MariaDB schema
-- Start Kafka, MariaDB, and Debezium with Docker Compose
-- Register the Debezium outbox connector
-- Run `user-service` and `notification-service`
-
-## Kafka Visualization
-
-Conduktor Console is available at http://localhost:8080 after `docker compose up -d`.
-
-It is connected to the local Kafka broker at `kafka:9092`, so you can inspect topics, consumer groups, and records from the browser UI.
-
-## Register connector
-
-After `docker compose up -d`:
-
-```bash
-curl -X POST http://localhost:8083/connectors \
-	-H 'Content-Type: application/json' \
-	--data @debezium/user-outbox-connector.json
+```text
+backend-login-service
+  -> login-mariadb.app.users
+  -> login-mariadb.app.outbox_event
+  -> Debezium Kafka Connect
+  -> Kafka topic outbox.event.user
+  -> backend-user-service Kafka consumer
+  -> user-mariadb.app_target.customer
 ```
 
-## Run locally
+## 주요 디렉터리
 
-1. Start infrastructure
+| Path | 설명 |
+| --- | --- |
+| `kafka-connect/Dockerfile` | Debezium MySQL connector plugin을 포함한 Kafka Connect 이미지 |
+| `debezium/user-outbox-connector.json` | 로컬 Compose용 Debezium connector 예제 |
+| `docker-compose.yml` | 로컬 Kafka/MariaDB/Debezium/Conduktor/notification-service 구성 |
+| `init-source.sql` | source MariaDB Debezium 권한 grant |
+| `user-service/` | 참고용 signup + outbox writer |
+| `notification-service/` | 참고용 Kafka consumer |
+| `shared-events/` | 참고용 event contract |
+| `kafka_debezium/` | 기존 실험 복사본 |
+
+## Kafka Connect 이미지
+
+이미지 빌드:
+
+```bash
+docker build -t team9-debezium-connect:local kafka-connect
+```
+
+이미지 특징:
+
+- base image: `apache/kafka:4.0.0`
+- Debezium MySQL connector: `3.2.3.Final`
+- plugin path: `/opt/kafka/plugins`
+- entrypoint: `connect-distributed.sh`
+
+Kubernetes에서는 `k8s/debezium-connect-configmap.yaml`의 `connect-distributed.properties`를 mount해서 실행합니다.
+
+## 로컬 Compose 실행
 
 ```bash
 docker compose up -d
 ```
 
-If you want the Kafka UI too, open http://localhost:8080 for Conduktor Console.
+Conduktor Console:
 
-2. Register the Debezium connector
+```text
+http://localhost:8080
+```
+
+Kafka bootstrap:
+
+```text
+localhost:29092
+```
+
+Debezium Connect REST:
+
+```text
+http://localhost:8083
+```
+
+## 로컬 connector 등록
 
 ```bash
 curl -X POST http://localhost:8083/connectors \
-	-H 'Content-Type: application/json' \
-	--data @debezium/user-outbox-connector.json
+  -H "Content-Type: application/json" \
+  --data @debezium/user-outbox-connector.json
 ```
 
-3. Run `user-service`
+현재 `debezium/user-outbox-connector.json`은 로컬 Compose용입니다.
+
+- connector name: `user-outbox-connector-v2`
+- database hostname: `mariadb`
+- topic routing: `outbox.event.${routedByValue}`
+- outbox table: `app.outbox_event`
+
+Kubernetes에서는 `k8s/login-outbox-connector-job.yaml`의 inline JSON을 사용하며 connector name은 `login-outbox-connector`입니다.
+
+## 참고 구현 실행
 
 ```bash
 cd user-service
 gradle bootRun
 ```
 
-4. Run `notification-service`
-
 ```bash
 cd notification-service
 gradle bootRun
 ```
 
-5. Call the signup API
+회원가입 요청 예:
 
 ```bash
 curl -X POST http://localhost:8081/users \
-	-H 'Content-Type: application/json' \
-	-d '{"email":"test@example.com","name":"Test User","password":"password123"}'
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","name":"Test User","password":"password123"}'
 ```
 
-If Gradle is not installed on your machine, install it first or add a Gradle wrapper to the repository.
-# backend-kafka-outbox
+## 주의점
+
+- 이 레포의 `notification-service`는 실제 MSA target consumer가 아닙니다.
+- 실제 target projection은 `backend-user-service`가 담당합니다.
+- `debezium/user-outbox-connector.json`은 로컬용이고, Kubernetes connector 설정과 이름/host가 다릅니다.
+- 현재 레포에는 과거 빌드 산출물(`build/`, `.gradle/`, `.class`)이 일부 포함되어 있습니다. 별도 cleanup issue로 제거하는 것이 좋습니다.
