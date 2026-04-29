@@ -51,6 +51,12 @@ The application never publishes directly to Kafka inside the signup transaction.
 - Register the Debezium outbox connector
 - Run `user-service` and `notification-service`
 
+## Kafka Visualization
+
+Conduktor Console is available at http://localhost:8080 after `docker compose up -d`.
+
+It is connected to the local Kafka broker at `kafka:9092`, so you can inspect topics, consumer groups, and records from the browser UI.
+
 ## Register connector
 
 After `docker compose up -d`:
@@ -68,6 +74,8 @@ curl -X POST http://localhost:8083/connectors \
 ```bash
 docker compose up -d
 ```
+
+If you want the Kafka UI too, open http://localhost:8080 for Conduktor Console.
 
 2. Register the Debezium connector
 

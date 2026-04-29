@@ -70,6 +70,44 @@ services:
       STATUS_STORAGE_REPLICATION_FACTOR: 1
       REST_ADVERTISED_HOST_NAME: debezium-connect
 
+  conduktor-console-db:
+    image: postgres:14
+    environment:
+      PGDATA: /var/lib/postgresql/data
+      POSTGRES_DB: conduktor-console
+      POSTGRES_USER: conduktor
+      POSTGRES_PASSWORD: change_me
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    ports:
+      - "5432:5432"
+    volumes:
+      - conduktor-console-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conduktor -d conduktor-console"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  conduktor-console:
+    image: conduktor/conduktor-console:1.44.1
+    depends_on:
+      conduktor-console-db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    volumes:
+      - conduktor-console-data:/var/conduktor
+    environment:
+      CDK_DATABASE_URL: postgresql://conduktor:change_me@conduktor-console-db:5432/conduktor-console
+      CDK_ORGANIZATION_NAME: getting-started
+      CDK_CLUSTERS_0_ID: local-kafka
+      CDK_CLUSTERS_0_NAME: local-kafka
+      CDK_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      CDK_CLUSTERS_0_COLOR: '#6A57C8'
+      CDK_CLUSTERS_0_ICON: kafka
+
   notification-service:
     build:
       context: .
@@ -86,3 +124,7 @@ services:
       SPRING_DATASOURCE_USERNAME: app_target
       SPRING_DATASOURCE_PASSWORD: app_target1234
       APP_KAFKA_TOPICS_USER_REGISTERED: outbox.event.user
+
+volumes:
+  conduktor-console-db:
+  conduktor-console-data:
