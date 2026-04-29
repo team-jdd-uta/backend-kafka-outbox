@@ -1,0 +1,4 @@
+-- init-source.sql (MariaDB source)
+
+GRANT RELOAD, LOCK TABLES, REPLICATION CLIENT, REPLICATION SLAVE ON *.* TO 'app'@'%';
+FLUSH PRIVILEGES;

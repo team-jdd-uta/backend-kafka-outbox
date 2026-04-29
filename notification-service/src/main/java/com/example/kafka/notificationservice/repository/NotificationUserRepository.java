@@ -16,8 +16,8 @@ public class NotificationUserRepository {
 
     public void save(String userId, String email, String name, LocalDateTime createdAt) {
         jdbcTemplate.update(
-                "INSERT INTO users (user_id, email, name, created_at) VALUES (?, ?, ?, ?)",
-                userId, email, name, createdAt
+                "INSERT INTO customer (user_id, name, created_at) VALUES (?, ?, ?)",
+                userId, name, createdAt
         );
     }
 }
