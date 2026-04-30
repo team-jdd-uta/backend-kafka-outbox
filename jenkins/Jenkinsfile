@@ -12,14 +12,6 @@ spec:
       command:
         - cat
       tty: true
-    - name: aws-cli
-      image: public.ecr.aws/aws-cli/aws-cli:latest
-      command:
-        - cat
-      tty: true
-      env:
-        - name: AWS_STS_REGIONAL_ENDPOINTS
-          value: regional
 """
     }
   }
@@ -31,18 +23,11 @@ spec:
   }
 
   parameters {
-    string(name: 'DEBEZIUM_VERSION', defaultValue: '1.9.7.Final', description: 'MSK Connect custom plugin에 포함할 Debezium MySQL connector 버전')
-    string(name: 'PLUGIN_S3_BUCKET', defaultValue: '881490135253-msk-connect-plugins', description: 'MSK Connect custom plugin zip을 업로드할 S3 bucket')
-    string(name: 'PLUGIN_S3_KEY', defaultValue: 'debezium/debezium-connector-mysql-1.9.7.Final-msk.zip', description: 'Terraform debezium_plugin_file_key와 일치해야 하는 S3 object key')
-    booleanParam(name: 'RUN_TESTS', defaultValue: true, description: '생성된 plugin zip smoke check 실행 여부')
-    booleanParam(name: 'PUBLISH_PLUGIN', defaultValue: false, description: 'main 브랜치에서 MSK Connect plugin zip을 S3에 업로드합니다.')
+    booleanParam(name: 'RUN_TESTS', defaultValue: true, description: '로컬 Debezium connector JSON 예제를 검증합니다.')
   }
 
   environment {
-    AWS_REGION = 'ap-northeast-2'
     JENKINS_AGENT_SERVICE_ACCOUNT = 'jenkins-kaniko-agent'
-    PLUGIN_WORK_DIR = 'build/msk-connect-plugin'
-    PLUGIN_ZIP_DIR = 'build'
   }
 
   stages {
@@ -52,71 +37,17 @@ spec:
       }
     }
 
-    stage('Prepare') {
-      steps {
-        script {
-          env.RESOLVED_DEBEZIUM_VERSION = params.DEBEZIUM_VERSION.trim()
-          env.PLUGIN_ZIP_NAME = "debezium-connector-mysql-${env.RESOLVED_DEBEZIUM_VERSION}-msk.zip"
-          env.PLUGIN_ZIP_PATH = "${env.PLUGIN_ZIP_DIR}/${env.PLUGIN_ZIP_NAME}"
-          echo "Debezium version: ${env.RESOLVED_DEBEZIUM_VERSION}"
-          echo "Plugin artifact: ${env.PLUGIN_ZIP_PATH}"
-        }
-      }
-    }
-
-    stage('Build MSK Connect Plugin') {
-      steps {
-        container('tools') {
-          sh '''
-            set -eu
-            apk add --no-cache ca-certificates curl tar gzip zip
-            rm -rf "$PLUGIN_WORK_DIR" "$PLUGIN_ZIP_PATH"
-            mkdir -p "$PLUGIN_WORK_DIR/debezium-mysql" "$PLUGIN_ZIP_DIR"
-
-            curl -fsSL \
-              "https://repo1.maven.org/maven2/io/debezium/debezium-connector-mysql/${RESOLVED_DEBEZIUM_VERSION}/debezium-connector-mysql-${RESOLVED_DEBEZIUM_VERSION}-plugin.tar.gz" \
-              -o "$PLUGIN_WORK_DIR/debezium-mysql.tar.gz"
-
-            tar -xzf "$PLUGIN_WORK_DIR/debezium-mysql.tar.gz" \
-              -C "$PLUGIN_WORK_DIR/debezium-mysql" \
-              --strip-components=1
-            rm "$PLUGIN_WORK_DIR/debezium-mysql.tar.gz"
-
-            cd "$PLUGIN_WORK_DIR"
-            zip -qr "$WORKSPACE/$PLUGIN_ZIP_PATH" debezium-mysql
-          '''
-        }
-      }
-    }
-
-    stage('Smoke Check') {
+    stage('Validate') {
       when { expression { return params.RUN_TESTS } }
       steps {
         container('tools') {
           sh '''
             set -eu
-            apk add --no-cache unzip
-            test -s "$PLUGIN_ZIP_PATH"
-            unzip -l "$PLUGIN_ZIP_PATH" | grep -q 'debezium-mysql/.*debezium-connector-mysql'
-          '''
-        }
-      }
-    }
+            apk add --no-cache jq
 
-    stage('Publish MSK Connect Plugin') {
-      when {
-        allOf {
-          branch 'main'
-          expression { return params.PUBLISH_PLUGIN }
-        }
-      }
-      steps {
-        container('aws-cli') {
-          sh '''
-            set -eu
-            test -s "$PLUGIN_ZIP_PATH"
-            aws s3 cp "$PLUGIN_ZIP_PATH" "s3://${PLUGIN_S3_BUCKET}/${PLUGIN_S3_KEY}" \
-              --region "$AWS_REGION"
+            for file in debezium/*.json; do
+              jq -e '.name and .config["connector.class"] and .config["transforms.outbox.type"]' "$file" >/dev/null
+            done
           '''
         }
       }
