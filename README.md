@@ -54,6 +54,28 @@ docker build -t team9-debezium-connect:local kafka-connect
 Kubernetes에서는 `k8s/debezium-connect-configmap.yaml`의 `connect-distributed.properties`를 mount해서 실행합니다.
 
 ## 로컬 Compose 실행
+curl -X POST http://localhost:8083/connectors \
+	-H 'Content-Type: application/json' \
+	--data @debezium/user-outbox-connector.json
+```
+
+For sharded source DBs, register one connector per shard:
+
+```bash
+curl -X POST http://localhost:8083/connectors \
+	-H 'Content-Type: application/json' \
+	--data @debezium/user-outbox-connector-shard-01.json
+
+curl -X POST http://localhost:8083/connectors \
+	-H 'Content-Type: application/json' \
+	--data @debezium/user-outbox-connector-shard-02.json
+```
+
+`user-outbox-connector-shard-02.json` connects to the `mariadb_source_shard_02` service added in `docker-compose.yml`.
+
+## Run locally
+
+1. Start infrastructure
 
 ```bash
 docker compose up -d

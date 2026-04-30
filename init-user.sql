@@ -27,6 +27,7 @@ CREATE TABLE customer (
     user_id VARCHAR(50) PRIMARY KEY,
     `password` VARCHAR(255),
     name VARCHAR(100),
+    email VARCHAR(255),
     created_at TIMESTAMP NULL
 ) ENGINE=InnoDB;
 

@@ -20,6 +20,19 @@ spring:
     initialization-mode: always
 
 app:
+  sharding:
+    shard-count: 2
+    targets:
+      shard0:
+        url: jdbc:mysql://localhost:3307/app_target
+        username: app_target
+        password: app_target1234
+        driver-class-name: com.mysql.cj.jdbc.Driver
+      shard1:
+        url: jdbc:mysql://localhost:3309/app_target
+        username: app_target
+        password: app_target1234
+        driver-class-name: com.mysql.cj.jdbc.Driver
   kafka:
     topics:
       user-registered: outbox.event.user

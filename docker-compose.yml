@@ -36,6 +36,23 @@ services:
     volumes:
       - ./init-source.sql:/docker-entrypoint-initdb.d/init-source.sql:ro
 
+  mariadb_source_shard_02:
+    image: mariadb:11.4
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: app
+      MARIADB_USER: app
+      MARIADB_PASSWORD: app1234
+    ports:
+      - "3310:3306"
+    command:
+      - "--server-id=4"
+      - "--log-bin=mysql-bin"
+      - "--binlog-format=ROW"
+      - "--binlog-row-image=FULL"
+    volumes:
+      - ./init-source.sql:/docker-entrypoint-initdb.d/init-source.sql:ro
+
   mariadb_target:
     image: mariadb:11.4
     environment:
@@ -51,6 +68,23 @@ services:
       - "--binlog-format=ROW"
     volumes:
       - ./init-user.sql:/docker-entrypoint-initdb.d/init-user.sql:ro
+
+  mariadb_target_shard:
+    image: mariadb:11.4
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: app_target
+      MARIADB_USER: app_target
+      MARIADB_PASSWORD: app_target1234
+    ports:
+      - "3309:3306"
+    command:
+      - "--server-id=3"
+      - "--log-bin=mysql-bin"
+      - "--binlog-format=ROW"
+    volumes:
+      - ./init-user.sql:/docker-entrypoint-initdb.d/init-user.sql:ro
+
 
   debezium-connect:
     image: debezium/connect:2.6
@@ -116,6 +150,7 @@ services:
     depends_on:
       - kafka
       - mariadb_target
+      - mariadb_target_shard
     ports:
       - "8082:8082"
     environment:
@@ -123,6 +158,13 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mariadb_target:3306/app_target
       SPRING_DATASOURCE_USERNAME: app_target
       SPRING_DATASOURCE_PASSWORD: app_target1234
+      APP_SHARDING_SHARD_COUNT: 2
+      APP_SHARDING_TARGETS_SHARD0_URL: jdbc:mysql://mariadb_target:3306/app_target
+      APP_SHARDING_TARGETS_SHARD0_USERNAME: app_target
+      APP_SHARDING_TARGETS_SHARD0_PASSWORD: app_target1234
+      APP_SHARDING_TARGETS_SHARD1_URL: jdbc:mysql://mariadb_target_shard:3306/app_target
+      APP_SHARDING_TARGETS_SHARD1_USERNAME: app_target
+      APP_SHARDING_TARGETS_SHARD1_PASSWORD: app_target1234
       APP_KAFKA_TOPICS_USER_REGISTERED: outbox.event.user
 
 volumes:
