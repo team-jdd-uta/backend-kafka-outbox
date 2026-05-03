@@ -53,6 +53,12 @@ docker build -t team9-debezium-connect:local kafka-connect
 
 Kubernetes에서는 `k8s/debezium-connect-configmap.yaml`의 `connect-distributed.properties`를 mount해서 실행합니다.
 
+## Jenkins 기준
+
+`jenkins/Jenkinsfile`은 Debezium Kafka Connect 이미지 빌드/푸시 확인용 reference pipeline입니다. 현재 GitOps active root sync에는 이 레포의 Application이 포함되지 않으므로 Jenkinsfile은 배포 manifest 갱신이나 Argo CD sync를 수행하지 않습니다.
+
+테스트/smoke 검증은 최종 공동 검증 단계에서 별도 명령으로 확인합니다.
+
 ## 로컬 Compose 실행
 curl -X POST http://localhost:8083/connectors \
 	-H 'Content-Type: application/json' \

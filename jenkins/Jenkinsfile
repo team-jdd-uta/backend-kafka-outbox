@@ -27,9 +27,7 @@ spec:
 
   parameters {
     string(name: 'IMAGE_TAG', defaultValue: '', description: '비워두면 git short sha를 이미지 태그로 사용합니다.')
-    booleanParam(name: 'RUN_TESTS', defaultValue: false, description: 'TODO: Kafka Connect 이미지 검증 명령 추가 후 true로 전환하세요.')
     booleanParam(name: 'PUSH_IMAGE', defaultValue: true, description: 'main 브랜치에서 ECR 이미지 push 여부')
-    booleanParam(name: 'DEPLOY', defaultValue: false, description: 'main 브랜치에서만 배포 연동을 실행합니다.')
   }
 
   environment {
@@ -41,8 +39,6 @@ spec:
     DOCKER_CONTEXT = 'kafka-connect'
     DOCKERFILE = 'kafka-connect/Dockerfile'
     PLATFORM = 'linux/amd64'
-    TEST_COMMAND = 'TODO_ADD_TEST_COMMAND'
-    DEPLOY_TARGET = 'TODO_ARGOCD_APP_OR_MANIFEST_REPO'
   }
 
   stages {
@@ -62,13 +58,6 @@ spec:
           env.IMAGE_REF = "${env.ECR_REGISTRY}/${env.IMAGE_PREFIX}${env.IMAGE_NAME}:${env.RESOLVED_IMAGE_TAG}"
           echo "Image: ${env.IMAGE_REF}"
         }
-      }
-    }
-
-    stage('Test') {
-      when { expression { return params.RUN_TESTS } }
-      steps {
-        error 'TODO: Kafka Connect image smoke test 명령을 추가하세요.'
       }
     }
 
@@ -109,17 +98,5 @@ spec:
       }
     }
 
-    stage('Deploy') {
-      when {
-        allOf {
-          branch 'main'
-          expression { return params.DEPLOY }
-        }
-      }
-      steps {
-        echo 'TODO: manifest repo image tag update 또는 ArgoCD sync를 여기에 연결하세요.'
-        echo "TODO target: ${env.DEPLOY_TARGET}"
-      }
-    }
   }
 }
